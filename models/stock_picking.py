@@ -24,20 +24,24 @@ class StockPicking(models.Model):
                     # Encontrar el asiento contable relacionado con el movimiento de stock
                     account_move = move.account_move_ids[:1]
                     if account_move:
+                        account_move.sudo()  # Elevar permisos antes de modificar líneas contables
                         for line in account_move.line_ids:
                             # Asegurarse de que la distribución analítica sea del 100%
                             if picking.location_id.usage == 'production' and line.debit != 0.0:
                                 analytic_distribution = {analytic_account.id: 100 for analytic_account in picking.analytic_account_ids}
-                                line.write({
+                                line.sudo().write({
                                     'analytic_distribution': analytic_distribution
                                 })
                             elif picking.location_dest_id.usage == 'production' and line.credit != 0.0:
                                 analytic_distribution = {analytic_account.id: 100 for analytic_account in picking.analytic_account_ids}
-                                line.write({
+                                line.sudo().write({
                                     'analytic_distribution': analytic_distribution
                                 })
-
         return res
+
+
+
+
 
     #version individual de validacion
     # def button_validate(self):
