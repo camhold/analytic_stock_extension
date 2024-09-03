@@ -9,36 +9,41 @@ class StockPicking(models.Model):
         'account.analytic.account',
         string='Analytic Accounts'
     )
-
+    
     def button_validate(self):
         res = super(StockPicking, self).button_validate()
 
-        for picking in self:  # Iterar sobre cada picking para asegurarnos de procesarlos por separado
+        for picking in self:
             if picking.picking_type_id.code == 'internal' and picking.location_dest_id.usage == 'production':
                 for move in picking.move_ids:
-                    # Asignar cuentas analíticas a los movimientos de stock y sus líneas
                     move.analytic_account_ids = picking.analytic_account_ids
                     for move_line in move.move_line_ids:
                         move_line.analytic_account_ids = picking.analytic_account_ids
 
-                    # Encontrar el asiento contable relacionado con el movimiento de stock
                     account_move = move.account_move_ids[:1]
                     if account_move:
-                        account_move.sudo()  # Elevar permisos antes de modificar líneas contables
+                        account_move.sudo()
                         for line in account_move.line_ids:
-                            # Asegurarse de que la distribución analítica sea del 100%
+                            analytic_distribution = {analytic_account.id: 100 for analytic_account in picking.analytic_account_ids}
+
+                            # Distribuir en la cuenta principal
                             if picking.location_id.usage == 'production' and line.debit != 0.0:
-                                analytic_distribution = {analytic_account.id: 100 for analytic_account in picking.analytic_account_ids}
                                 line.sudo().write({
                                     'analytic_distribution': analytic_distribution
                                 })
                             elif picking.location_dest_id.usage == 'production' and line.credit != 0.0:
-                                analytic_distribution = {analytic_account.id: 100 for analytic_account in picking.analytic_account_ids}
                                 line.sudo().write({
                                     'analytic_distribution': analytic_distribution
                                 })
-        return res
 
+                            # Distribuir en la contracuenta
+                            contra_line = account_move.line_ids.filtered(lambda l: l.account_id.id != line.account_id.id and l.id != line.id)
+                            if contra_line:
+                                contra_line.sudo().write({
+                                    'analytic_distribution': analytic_distribution
+                                })
+
+        return res
 
 
 
